@@ -1,3 +1,6 @@
+import { readFileSync, statSync } from "node:fs";
+import { basename } from "node:path";
+
 export interface CanvasClientConfig {
   domain: string;
   token: string;
@@ -32,6 +35,8 @@ export interface DiscussionTopic {
   id: number;
   title: string;
 }
+
+export type SubmissionInput = { text: string } | { url: string } | { filePath: string };
 
 export class CanvasApiError extends Error {
   constructor(public status: number, message: string) {
@@ -154,5 +159,56 @@ export class CanvasClient {
 
   async postDiscussionReply(courseId: number, topicId: number, message: string): Promise<{ id: number }> {
     return this.postJson(`/courses/${courseId}/discussion_topics/${topicId}/entries`, { message });
+  }
+
+  private async uploadFile(courseId: number, assignmentId: number, filePath: string): Promise<number> {
+    const name = basename(filePath);
+    const size = statSync(filePath).size;
+
+    const { upload_url, upload_params } = await this.postJson<{
+      upload_url: string;
+      upload_params: Record<string, string>;
+    }>(`/courses/${courseId}/assignments/${assignmentId}/submissions/self/files`, {
+      name,
+      size,
+    });
+
+    const form = new FormData();
+    for (const [key, value] of Object.entries(upload_params)) {
+      form.append(key, value);
+    }
+    form.append("file", new Blob([readFileSync(filePath)]), name);
+
+    const res = await this.fetchImpl(upload_url, { method: "POST", body: form });
+    if (!res.ok) {
+      throw new CanvasApiError(res.status, `File upload to Canvas failed with status ${res.status}`);
+    }
+    const uploaded = (await res.json()) as { id: number };
+    return uploaded.id;
+  }
+
+  async submitAssignment(
+    courseId: number,
+    assignmentId: number,
+    submission: SubmissionInput
+  ): Promise<{ id: number }> {
+    const path = `/courses/${courseId}/assignments/${assignmentId}/submissions`;
+
+    if ("text" in submission) {
+      return this.postJson(path, { submission: { submission_type: "online_text_entry", body: submission.text } });
+    }
+    if ("url" in submission) {
+      return this.postJson(path, { submission: { submission_type: "online_url", url: submission.url } });
+    }
+    const fileId = await this.uploadFile(courseId, assignmentId, submission.filePath);
+    return this.postJson(path, { submission: { submission_type: "online_upload", file_ids: [fileId] } });
+  }
+
+  async addSubmissionComment(courseId: number, assignmentId: number, comment: string): Promise<{ id: number }> {
+    return this.requestOne(`/courses/${courseId}/assignments/${assignmentId}/submissions/self`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ comment: { text_comment: comment } }),
+    });
   }
 }

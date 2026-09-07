@@ -1,5 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 import { CanvasClient, CanvasApiError, parseNextLink } from "./canvasClient.js";
+import { writeFileSync, mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 function jsonResponse(body: unknown, init: { status?: number; link?: string } = {}) {
   const headers = new Headers();
@@ -190,5 +193,88 @@ describe("CanvasClient.postDiscussionReply", () => {
     const reply = await client.postDiscussionReply(10, 500, "Great point!");
 
     expect(reply.id).toBe(9001);
+  });
+});
+
+describe("CanvasClient.submitAssignment", () => {
+  it("submits a text entry", async () => {
+    const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
+      expect(url).toBe("https://school.instructure.com/api/v1/courses/10/assignments/100/submissions");
+      expect(JSON.parse(init?.body as string)).toEqual({
+        submission: { submission_type: "online_text_entry", body: "My essay text" },
+      });
+      return jsonResponse({ id: 7001 });
+    });
+
+    const client = new CanvasClient({ domain: "school.instructure.com", token: "t", fetchImpl });
+    const result = await client.submitAssignment(10, 100, { text: "My essay text" });
+
+    expect(result.id).toBe(7001);
+  });
+
+  it("submits a URL", async () => {
+    const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) => {
+      expect(JSON.parse(init?.body as string)).toEqual({
+        submission: { submission_type: "online_url", url: "https://example.com/project" },
+      });
+      return jsonResponse({ id: 7002 });
+    });
+
+    const client = new CanvasClient({ domain: "school.instructure.com", token: "t", fetchImpl });
+    const result = await client.submitAssignment(10, 100, { url: "https://example.com/project" });
+
+    expect(result.id).toBe(7002);
+  });
+
+  it("submits a file via the three-step Canvas upload flow", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "canvas-test-"));
+    const filePath = join(dir, "essay.txt");
+    writeFileSync(filePath, "file contents");
+
+    const calls: string[] = [];
+    const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
+      calls.push(url);
+      if (url === "https://school.instructure.com/api/v1/courses/10/assignments/100/submissions/self/files") {
+        const body = JSON.parse(init?.body as string);
+        expect(body.name).toBe("essay.txt");
+        return jsonResponse({
+          upload_url: "https://upload.example.com/put",
+          upload_params: { key: "abc", policy: "xyz" },
+        });
+      }
+      if (url === "https://upload.example.com/put") {
+        return jsonResponse({ id: 555 });
+      }
+      if (url === "https://school.instructure.com/api/v1/courses/10/assignments/100/submissions") {
+        const body = JSON.parse(init?.body as string);
+        expect(body).toEqual({
+          submission: { submission_type: "online_upload", file_ids: [555] },
+        });
+        return jsonResponse({ id: 7003 });
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    const client = new CanvasClient({ domain: "school.instructure.com", token: "t", fetchImpl });
+    const result = await client.submitAssignment(10, 100, { filePath });
+
+    expect(result.id).toBe(7003);
+    expect(calls).toHaveLength(3);
+  });
+});
+
+describe("CanvasClient.addSubmissionComment", () => {
+  it("PUTs a comment onto the user's own submission", async () => {
+    const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
+      expect(url).toBe("https://school.instructure.com/api/v1/courses/10/assignments/100/submissions/self");
+      expect(init?.method).toBe("PUT");
+      expect(JSON.parse(init?.body as string)).toEqual({ comment: { text_comment: "Sorry this is late!" } });
+      return jsonResponse({ id: 8001 });
+    });
+
+    const client = new CanvasClient({ domain: "school.instructure.com", token: "t", fetchImpl });
+    const result = await client.addSubmissionComment(10, 100, "Sorry this is late!");
+
+    expect(result.id).toBe(8001);
   });
 });
