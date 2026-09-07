@@ -94,3 +94,38 @@ describe("CanvasClient.listCourses", () => {
     await expect(client.listCourses()).rejects.toThrow(/unexpected.*response/i);
   });
 });
+
+describe("CanvasClient.listAssignments", () => {
+  it("requests assignments with submission info included", async () => {
+    const fetchImpl = vi.fn(async (url: string) => {
+      expect(url).toBe(
+        "https://school.instructure.com/api/v1/courses/10/assignments?include[]=submission"
+      );
+      return jsonResponse([
+        { id: 100, name: "Essay 1", due_at: "2026-09-10T23:59:00Z", submission: { workflow_state: "unsubmitted", submitted_at: null } },
+      ]);
+    });
+
+    const client = new CanvasClient({ domain: "school.instructure.com", token: "t", fetchImpl });
+    const assignments = await client.listAssignments(10);
+
+    expect(assignments).toHaveLength(1);
+    expect(assignments[0].name).toBe("Essay 1");
+  });
+});
+
+describe("CanvasClient.getAssignment", () => {
+  it("fetches a single assignment by id", async () => {
+    const fetchImpl = vi.fn(async (url: string) => {
+      expect(url).toBe(
+        "https://school.instructure.com/api/v1/courses/10/assignments/100?include[]=submission"
+      );
+      return jsonResponse({ id: 100, name: "Essay 1", due_at: "2026-09-10T23:59:00Z" });
+    });
+
+    const client = new CanvasClient({ domain: "school.instructure.com", token: "t", fetchImpl });
+    const assignment = await client.getAssignment(10, 100);
+
+    expect(assignment.id).toBe(100);
+  });
+});

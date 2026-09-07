@@ -10,6 +10,16 @@ export interface Course {
   course_code: string;
 }
 
+export interface Assignment {
+  id: number;
+  name: string;
+  due_at: string | null;
+  submission?: {
+    workflow_state: string;
+    submitted_at: string | null;
+  };
+}
+
 export class CanvasApiError extends Error {
   constructor(public status: number, message: string) {
     super(message);
@@ -102,5 +112,13 @@ export class CanvasClient {
 
   async listCourses(): Promise<Course[]> {
     return this.requestAllPages<Course>("/courses?enrollment_state=active");
+  }
+
+  async listAssignments(courseId: number): Promise<Assignment[]> {
+    return this.requestAllPages<Assignment>(`/courses/${courseId}/assignments?include[]=submission`);
+  }
+
+  async getAssignment(courseId: number, assignmentId: number): Promise<Assignment> {
+    return this.requestOne<Assignment>(`/courses/${courseId}/assignments/${assignmentId}?include[]=submission`);
   }
 }
