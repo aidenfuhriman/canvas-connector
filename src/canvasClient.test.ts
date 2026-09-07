@@ -129,3 +129,36 @@ describe("CanvasClient.getAssignment", () => {
     expect(assignment.id).toBe(100);
   });
 });
+
+describe("CanvasClient.listGrades", () => {
+  it("returns grades for all enrolled courses when no courseId is given", async () => {
+    const fetchImpl = vi.fn(async (url: string) => {
+      expect(url).toBe(
+        "https://school.instructure.com/api/v1/users/self/enrollments?type[]=StudentEnrollment"
+      );
+      return jsonResponse([
+        { course_id: 10, grades: { current_score: 92, current_grade: "A-" } },
+        { course_id: 20, grades: { current_score: 78, current_grade: "C+" } },
+      ]);
+    });
+
+    const client = new CanvasClient({ domain: "school.instructure.com", token: "t", fetchImpl });
+    const grades = await client.listGrades();
+
+    expect(grades).toHaveLength(2);
+  });
+
+  it("filters to one course when courseId is given", async () => {
+    const fetchImpl = vi.fn(async () =>
+      jsonResponse([
+        { course_id: 10, grades: { current_score: 92, current_grade: "A-" } },
+        { course_id: 20, grades: { current_score: 78, current_grade: "C+" } },
+      ])
+    );
+
+    const client = new CanvasClient({ domain: "school.instructure.com", token: "t", fetchImpl });
+    const grades = await client.listGrades(10);
+
+    expect(grades).toEqual([{ course_id: 10, grades: { current_score: 92, current_grade: "A-" } }]);
+  });
+});

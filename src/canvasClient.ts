@@ -20,6 +20,14 @@ export interface Assignment {
   };
 }
 
+export interface Enrollment {
+  course_id: number;
+  grades: {
+    current_score: number | null;
+    current_grade: string | null;
+  };
+}
+
 export class CanvasApiError extends Error {
   constructor(public status: number, message: string) {
     super(message);
@@ -120,5 +128,10 @@ export class CanvasClient {
 
   async getAssignment(courseId: number, assignmentId: number): Promise<Assignment> {
     return this.requestOne<Assignment>(`/courses/${courseId}/assignments/${assignmentId}?include[]=submission`);
+  }
+
+  async listGrades(courseId?: number): Promise<Enrollment[]> {
+    const all = await this.requestAllPages<Enrollment>("/users/self/enrollments?type[]=StudentEnrollment");
+    return courseId === undefined ? all : all.filter((e) => e.course_id === courseId);
   }
 }
