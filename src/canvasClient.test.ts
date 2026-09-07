@@ -261,6 +261,54 @@ describe("CanvasClient.submitAssignment", () => {
     expect(result.id).toBe(7003);
     expect(calls).toHaveLength(3);
   });
+
+  it("throws CanvasApiError when file upload endpoint is unreachable (network failure)", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "canvas-test-"));
+    const filePath = join(dir, "essay.txt");
+    writeFileSync(filePath, "file contents");
+
+    const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url === "https://school.instructure.com/api/v1/courses/10/assignments/100/submissions/self/files") {
+        return jsonResponse({
+          upload_url: "https://upload.example.com/put",
+          upload_params: { key: "abc", policy: "xyz" },
+        });
+      }
+      if (url === "https://upload.example.com/put") {
+        throw new Error("Network timeout");
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    const client = new CanvasClient({ domain: "school.instructure.com", token: "t", fetchImpl });
+
+    await expect(client.submitAssignment(10, 100, { filePath })).rejects.toThrow(CanvasApiError);
+    await expect(client.submitAssignment(10, 100, { filePath })).rejects.toThrow(/Could not reach the Canvas file upload endpoint/i);
+  });
+
+  it("throws CanvasApiError when file upload endpoint returns non-JSON", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "canvas-test-"));
+    const filePath = join(dir, "essay.txt");
+    writeFileSync(filePath, "file contents");
+
+    const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url === "https://school.instructure.com/api/v1/courses/10/assignments/100/submissions/self/files") {
+        return jsonResponse({
+          upload_url: "https://upload.example.com/put",
+          upload_params: { key: "abc", policy: "xyz" },
+        });
+      }
+      if (url === "https://upload.example.com/put") {
+        return new Response("Not JSON at all", { status: 200 });
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    const client = new CanvasClient({ domain: "school.instructure.com", token: "t", fetchImpl });
+
+    await expect(client.submitAssignment(10, 100, { filePath })).rejects.toThrow(CanvasApiError);
+    await expect(client.submitAssignment(10, 100, { filePath })).rejects.toThrow(/unexpected.*response/i);
+  });
 });
 
 describe("CanvasClient.addSubmissionComment", () => {

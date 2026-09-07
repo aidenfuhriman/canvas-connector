@@ -179,11 +179,23 @@ export class CanvasClient {
     }
     form.append("file", new Blob([readFileSync(filePath)]), name);
 
-    const res = await this.fetchImpl(upload_url, { method: "POST", body: form });
+    let res: Response;
+    try {
+      res = await this.fetchImpl(upload_url, { method: "POST", body: form });
+    } catch (err) {
+      throw new CanvasApiError(0, `Could not reach the Canvas file upload endpoint: ${err instanceof Error ? err.message : String(err)}`);
+    }
+
     if (!res.ok) {
       throw new CanvasApiError(res.status, `File upload to Canvas failed with status ${res.status}`);
     }
-    const uploaded = (await res.json()) as { id: number };
+
+    let uploaded: { id: number };
+    try {
+      uploaded = (await res.json()) as { id: number };
+    } catch (err) {
+      throw new CanvasApiError(res.status, "Canvas file upload returned an unexpected (non-JSON) response.");
+    }
     return uploaded.id;
   }
 
