@@ -1,3 +1,4 @@
 node_modules/
 dist/
 .env
+publish-digest.log
