@@ -1,4 +1,6 @@
 import { CanvasClient, type Course, type Assignment, type CalendarEvent } from "../canvasClient.js";
+import { loadConfigFromEnv } from "../mcp/config.js";
+import { pathToFileURL } from "node:url";
 
 export interface UpcomingAssignment {
   courseId: number;
@@ -62,4 +64,29 @@ export function formatDigest(assignments: UpcomingAssignment[], events: Calendar
   }
 
   return lines.join("\n");
+}
+
+export async function runDigest(
+  client: Pick<CanvasClient, "listCourses" | "listAssignments" | "listCalendarEvents">,
+  now: Date
+): Promise<string> {
+  const assignments = await getUpcomingAssignments(client, 7, now);
+  const events = await getTodayCanvasEvents(client, now);
+  return formatDigest(assignments, events);
+}
+
+export async function main(): Promise<void> {
+  try {
+    const config = loadConfigFromEnv();
+    const client = new CanvasClient(config);
+    const text = await runDigest(client, new Date());
+    console.log(text);
+  } catch (err) {
+    console.error(err instanceof Error ? err.message : String(err));
+    process.exit(1);
+  }
+}
+
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main();
 }

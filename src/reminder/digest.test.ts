@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
-import { getUpcomingAssignments, getTodayCanvasEvents, formatDigest } from "./digest.js";
-import type { Course, Assignment, CalendarEvent } from "../canvasClient.js";
+import { getUpcomingAssignments, getTodayCanvasEvents, formatDigest, runDigest } from "./digest.js";
+import { CanvasApiError, type Course, type Assignment, type CalendarEvent } from "../canvasClient.js";
 
 function fakeClient(overrides: Record<string, any>) {
   return overrides as any;
@@ -163,5 +163,32 @@ describe("formatDigest", () => {
 
     expect(text).toContain("Nothing due");
     expect(text).toContain("No Canvas calendar events today");
+  });
+});
+
+describe("runDigest", () => {
+  it("returns formatted text on success", async () => {
+    const client = fakeClient({
+      listCourses: vi.fn(async () => []),
+      listAssignments: vi.fn(async () => []),
+      listCalendarEvents: vi.fn(async () => []),
+    });
+
+    const text = await runDigest(client, new Date("2026-09-06T12:00:00Z"));
+
+    expect(text).toContain("Nothing due");
+  });
+
+  it("rejects with the underlying CanvasApiError when a Canvas call fails, rather than swallowing it", async () => {
+    const apiError = new CanvasApiError(401, "Canvas rejected the API token — check CANVAS_API_TOKEN.");
+    const client = fakeClient({
+      listCourses: vi.fn(async () => {
+        throw apiError;
+      }),
+      listAssignments: vi.fn(async () => []),
+      listCalendarEvents: vi.fn(async () => []),
+    });
+
+    await expect(runDigest(client, new Date("2026-09-06T12:00:00Z"))).rejects.toBe(apiError);
   });
 });
