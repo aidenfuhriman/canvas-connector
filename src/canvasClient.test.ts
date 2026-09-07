@@ -100,8 +100,9 @@ describe("CanvasClient.listCourses", () => {
 
 describe("CanvasClient.listAssignments", () => {
   it("requests assignments with submission info included", async () => {
-    const fetchImpl = vi.fn(async (url: string) => {
-      expect(url).toBe(
+    const fetchImpl = vi.fn(async (url: string | URL | Request) => {
+      const urlStr = String(url);
+      expect(urlStr).toBe(
         "https://school.instructure.com/api/v1/courses/10/assignments?include[]=submission"
       );
       return jsonResponse([
@@ -119,8 +120,9 @@ describe("CanvasClient.listAssignments", () => {
 
 describe("CanvasClient.getAssignment", () => {
   it("fetches a single assignment by id", async () => {
-    const fetchImpl = vi.fn(async (url: string) => {
-      expect(url).toBe(
+    const fetchImpl = vi.fn(async (url: string | URL | Request) => {
+      const urlStr = String(url);
+      expect(urlStr).toBe(
         "https://school.instructure.com/api/v1/courses/10/assignments/100?include[]=submission"
       );
       return jsonResponse({ id: 100, name: "Essay 1", due_at: "2026-09-10T23:59:00Z" });
@@ -135,8 +137,9 @@ describe("CanvasClient.getAssignment", () => {
 
 describe("CanvasClient.listGrades", () => {
   it("returns grades for all enrolled courses when no courseId is given", async () => {
-    const fetchImpl = vi.fn(async (url: string) => {
-      expect(url).toBe(
+    const fetchImpl = vi.fn(async (url: string | URL | Request) => {
+      const urlStr = String(url);
+      expect(urlStr).toBe(
         "https://school.instructure.com/api/v1/users/self/enrollments?type[]=StudentEnrollment"
       );
       return jsonResponse([
@@ -168,8 +171,9 @@ describe("CanvasClient.listGrades", () => {
 
 describe("CanvasClient.listDiscussionTopics", () => {
   it("lists discussion topics for a course", async () => {
-    const fetchImpl = vi.fn(async (url: string) => {
-      expect(url).toBe("https://school.instructure.com/api/v1/courses/10/discussion_topics");
+    const fetchImpl = vi.fn(async (url: string | URL | Request) => {
+      const urlStr = String(url);
+      expect(urlStr).toBe("https://school.instructure.com/api/v1/courses/10/discussion_topics");
       return jsonResponse([{ id: 500, title: "Week 1 Discussion" }]);
     });
 
@@ -182,8 +186,9 @@ describe("CanvasClient.listDiscussionTopics", () => {
 
 describe("CanvasClient.postDiscussionReply", () => {
   it("POSTs a message to the topic's entries endpoint", async () => {
-    const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
-      expect(url).toBe("https://school.instructure.com/api/v1/courses/10/discussion_topics/500/entries");
+    const fetchImpl = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      const urlStr = String(url);
+      expect(urlStr).toBe("https://school.instructure.com/api/v1/courses/10/discussion_topics/500/entries");
       expect(init?.method).toBe("POST");
       expect(JSON.parse(init?.body as string)).toEqual({ message: "Great point!" });
       return jsonResponse({ id: 9001 });
@@ -198,8 +203,9 @@ describe("CanvasClient.postDiscussionReply", () => {
 
 describe("CanvasClient.submitAssignment", () => {
   it("submits a text entry", async () => {
-    const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
-      expect(url).toBe("https://school.instructure.com/api/v1/courses/10/assignments/100/submissions");
+    const fetchImpl = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      const urlStr = String(url);
+      expect(urlStr).toBe("https://school.instructure.com/api/v1/courses/10/assignments/100/submissions");
       expect(JSON.parse(init?.body as string)).toEqual({
         submission: { submission_type: "online_text_entry", body: "My essay text" },
       });
@@ -213,7 +219,7 @@ describe("CanvasClient.submitAssignment", () => {
   });
 
   it("submits a URL", async () => {
-    const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) => {
+    const fetchImpl = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
       expect(JSON.parse(init?.body as string)).toEqual({
         submission: { submission_type: "online_url", url: "https://example.com/project" },
       });
@@ -232,9 +238,10 @@ describe("CanvasClient.submitAssignment", () => {
     writeFileSync(filePath, "file contents");
 
     const calls: string[] = [];
-    const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
-      calls.push(url);
-      if (url === "https://school.instructure.com/api/v1/courses/10/assignments/100/submissions/self/files") {
+    const fetchImpl = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      const urlStr = String(url);
+      calls.push(urlStr);
+      if (urlStr === "https://school.instructure.com/api/v1/courses/10/assignments/100/submissions/self/files") {
         const body = JSON.parse(init?.body as string);
         expect(body.name).toBe("essay.txt");
         return jsonResponse({
@@ -242,17 +249,17 @@ describe("CanvasClient.submitAssignment", () => {
           upload_params: { key: "abc", policy: "xyz" },
         });
       }
-      if (url === "https://upload.example.com/put") {
+      if (urlStr === "https://upload.example.com/put") {
         return jsonResponse({ id: 555 });
       }
-      if (url === "https://school.instructure.com/api/v1/courses/10/assignments/100/submissions") {
+      if (urlStr === "https://school.instructure.com/api/v1/courses/10/assignments/100/submissions") {
         const body = JSON.parse(init?.body as string);
         expect(body).toEqual({
           submission: { submission_type: "online_upload", file_ids: [555] },
         });
         return jsonResponse({ id: 7003 });
       }
-      throw new Error(`Unexpected URL: ${url}`);
+      throw new Error(`Unexpected URL: ${urlStr}`);
     });
 
     const client = new CanvasClient({ domain: "school.instructure.com", token: "t", fetchImpl });
@@ -267,17 +274,18 @@ describe("CanvasClient.submitAssignment", () => {
     const filePath = join(dir, "essay.txt");
     writeFileSync(filePath, "file contents");
 
-    const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
-      if (url === "https://school.instructure.com/api/v1/courses/10/assignments/100/submissions/self/files") {
+    const fetchImpl = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      const urlStr = String(url);
+      if (urlStr === "https://school.instructure.com/api/v1/courses/10/assignments/100/submissions/self/files") {
         return jsonResponse({
           upload_url: "https://upload.example.com/put",
           upload_params: { key: "abc", policy: "xyz" },
         });
       }
-      if (url === "https://upload.example.com/put") {
+      if (urlStr === "https://upload.example.com/put") {
         throw new Error("Network timeout");
       }
-      throw new Error(`Unexpected URL: ${url}`);
+      throw new Error(`Unexpected URL: ${urlStr}`);
     });
 
     const client = new CanvasClient({ domain: "school.instructure.com", token: "t", fetchImpl });
@@ -291,17 +299,18 @@ describe("CanvasClient.submitAssignment", () => {
     const filePath = join(dir, "essay.txt");
     writeFileSync(filePath, "file contents");
 
-    const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
-      if (url === "https://school.instructure.com/api/v1/courses/10/assignments/100/submissions/self/files") {
+    const fetchImpl = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      const urlStr = String(url);
+      if (urlStr === "https://school.instructure.com/api/v1/courses/10/assignments/100/submissions/self/files") {
         return jsonResponse({
           upload_url: "https://upload.example.com/put",
           upload_params: { key: "abc", policy: "xyz" },
         });
       }
-      if (url === "https://upload.example.com/put") {
+      if (urlStr === "https://upload.example.com/put") {
         return new Response("Not JSON at all", { status: 200 });
       }
-      throw new Error(`Unexpected URL: ${url}`);
+      throw new Error(`Unexpected URL: ${urlStr}`);
     });
 
     const client = new CanvasClient({ domain: "school.instructure.com", token: "t", fetchImpl });
@@ -313,8 +322,9 @@ describe("CanvasClient.submitAssignment", () => {
 
 describe("CanvasClient.addSubmissionComment", () => {
   it("PUTs a comment onto the user's own submission", async () => {
-    const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
-      expect(url).toBe("https://school.instructure.com/api/v1/courses/10/assignments/100/submissions/self");
+    const fetchImpl = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      const urlStr = String(url);
+      expect(urlStr).toBe("https://school.instructure.com/api/v1/courses/10/assignments/100/submissions/self");
       expect(init?.method).toBe("PUT");
       expect(JSON.parse(init?.body as string)).toEqual({ comment: { text_comment: "Sorry this is late!" } });
       return jsonResponse({ id: 8001 });
@@ -329,8 +339,9 @@ describe("CanvasClient.addSubmissionComment", () => {
 
 describe("CanvasClient.listCalendarEvents", () => {
   it("requests events in the given date range", async () => {
-    const fetchImpl = vi.fn(async (url: string) => {
-      expect(url).toBe(
+    const fetchImpl = vi.fn(async (url: string | URL | Request) => {
+      const urlStr = String(url);
+      expect(urlStr).toBe(
         "https://school.instructure.com/api/v1/calendar_events?type=event&start_date=2026-09-06&end_date=2026-09-13&per_page=50"
       );
       return jsonResponse([{ id: 1, title: "Study group", start_at: "2026-09-08T18:00:00Z", end_at: null }]);
