@@ -36,6 +36,13 @@ export interface DiscussionTopic {
   title: string;
 }
 
+export interface CalendarEvent {
+  id: number;
+  title: string;
+  start_at: string;
+  end_at: string | null;
+}
+
 export type SubmissionInput = { text: string } | { url: string } | { filePath: string };
 
 export class CanvasApiError extends Error {
@@ -155,6 +162,12 @@ export class CanvasClient {
 
   async listDiscussionTopics(courseId: number): Promise<DiscussionTopic[]> {
     return this.requestAllPages<DiscussionTopic>(`/courses/${courseId}/discussion_topics`);
+  }
+
+  async listCalendarEvents(startDate: string, endDate: string): Promise<CalendarEvent[]> {
+    return this.requestAllPages<CalendarEvent>(
+      `/calendar_events?type=event&start_date=${startDate}&end_date=${endDate}&per_page=50`
+    );
   }
 
   async postDiscussionReply(courseId: number, topicId: number, message: string): Promise<{ id: number }> {

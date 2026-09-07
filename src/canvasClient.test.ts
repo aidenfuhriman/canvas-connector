@@ -326,3 +326,19 @@ describe("CanvasClient.addSubmissionComment", () => {
     expect(result.id).toBe(8001);
   });
 });
+
+describe("CanvasClient.listCalendarEvents", () => {
+  it("requests events in the given date range", async () => {
+    const fetchImpl = vi.fn(async (url: string) => {
+      expect(url).toBe(
+        "https://school.instructure.com/api/v1/calendar_events?type=event&start_date=2026-09-06&end_date=2026-09-13&per_page=50"
+      );
+      return jsonResponse([{ id: 1, title: "Study group", start_at: "2026-09-08T18:00:00Z", end_at: null }]);
+    });
+
+    const client = new CanvasClient({ domain: "school.instructure.com", token: "t", fetchImpl });
+    const events = await client.listCalendarEvents("2026-09-06", "2026-09-13");
+
+    expect(events[0].title).toBe("Study group");
+  });
+});
