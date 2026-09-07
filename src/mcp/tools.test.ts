@@ -104,3 +104,85 @@ describe("list_calendar_events tool", () => {
     expect(result.content[0].text).toContain("Office Hours");
   });
 });
+
+describe("submit_assignment tool", () => {
+  it("previews instead of submitting when confirm is not true", async () => {
+    const submitAssignment = vi.fn();
+    const client = fakeClient({ submitAssignment });
+    const server = buildServer(client);
+
+    const result = await callTool(server, "submit_assignment", {
+      course_id: 10,
+      assignment_id: 100,
+      text: "My essay",
+    });
+
+    expect(submitAssignment).not.toHaveBeenCalled();
+    expect(result.content[0].text).toMatch(/confirm/i);
+  });
+
+  it("submits when confirm is true", async () => {
+    const submitAssignment = vi.fn(async () => ({ id: 7001 }));
+    const client = fakeClient({ submitAssignment });
+    const server = buildServer(client);
+
+    const result = await callTool(server, "submit_assignment", {
+      course_id: 10,
+      assignment_id: 100,
+      text: "My essay",
+      confirm: true,
+    });
+
+    expect(submitAssignment).toHaveBeenCalledWith(10, 100, { text: "My essay" });
+    expect(result.content[0].text).toContain("7001");
+  });
+});
+
+describe("post_discussion_reply tool", () => {
+  it("requires confirm before posting", async () => {
+    const postDiscussionReply = vi.fn();
+    const client = fakeClient({ postDiscussionReply });
+    const server = buildServer(client);
+
+    await callTool(server, "post_discussion_reply", { course_id: 10, topic_id: 500, message: "hi" });
+
+    expect(postDiscussionReply).not.toHaveBeenCalled();
+  });
+
+  it("posts when confirmed", async () => {
+    const postDiscussionReply = vi.fn(async () => ({ id: 9001 }));
+    const client = fakeClient({ postDiscussionReply });
+    const server = buildServer(client);
+
+    await callTool(server, "post_discussion_reply", { course_id: 10, topic_id: 500, message: "hi", confirm: true });
+
+    expect(postDiscussionReply).toHaveBeenCalledWith(10, 500, "hi");
+  });
+});
+
+describe("add_submission_comment tool", () => {
+  it("requires confirm before commenting", async () => {
+    const addSubmissionComment = vi.fn();
+    const client = fakeClient({ addSubmissionComment });
+    const server = buildServer(client);
+
+    await callTool(server, "add_submission_comment", { course_id: 10, assignment_id: 100, comment: "sorry, late" });
+
+    expect(addSubmissionComment).not.toHaveBeenCalled();
+  });
+
+  it("comments when confirmed", async () => {
+    const addSubmissionComment = vi.fn(async () => ({ id: 8001 }));
+    const client = fakeClient({ addSubmissionComment });
+    const server = buildServer(client);
+
+    await callTool(server, "add_submission_comment", {
+      course_id: 10,
+      assignment_id: 100,
+      comment: "sorry, late",
+      confirm: true,
+    });
+
+    expect(addSubmissionComment).toHaveBeenCalledWith(10, 100, "sorry, late");
+  });
+});

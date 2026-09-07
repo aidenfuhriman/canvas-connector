@@ -86,5 +86,67 @@ export function buildServer(client: CanvasClient) {
     }
   );
 
+  register(
+    "submit_assignment",
+    "Submit assignment work (text, a URL, or a local file path). Requires confirm: true to actually submit.",
+    z.object({
+      course_id: z.number(),
+      assignment_id: z.number(),
+      text: z.string().optional(),
+      url: z.string().optional(),
+      file_path: z.string().optional(),
+      confirm: z.boolean().optional(),
+    }),
+    async ({ course_id, assignment_id, text, url, file_path, confirm }) => {
+      const submission = text !== undefined ? { text } : url !== undefined ? { url } : { filePath: file_path! };
+      if (!confirm) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `This would submit to course ${course_id}, assignment ${assignment_id}: ${JSON.stringify(
+                submission
+              )}. Call again with confirm: true to actually submit.`,
+            },
+          ],
+        };
+      }
+      const result = await client.submitAssignment(course_id, assignment_id, submission as any);
+      return { content: [{ type: "text", text: `Submitted. Submission id: ${result.id}` }] };
+    }
+  );
+
+  register(
+    "post_discussion_reply",
+    "Post a reply to a Canvas discussion topic. Requires confirm: true to actually post.",
+    z.object({ course_id: z.number(), topic_id: z.number(), message: z.string(), confirm: z.boolean().optional() }),
+    async ({ course_id, topic_id, message, confirm }) => {
+      if (!confirm) {
+        return {
+          content: [
+            { type: "text", text: `This would post "${message}" to topic ${topic_id}. Call again with confirm: true to actually post.` },
+          ],
+        };
+      }
+      const result = await client.postDiscussionReply(course_id, topic_id, message);
+      return { content: [{ type: "text", text: `Posted. Entry id: ${result.id}` }] };
+    }
+  );
+
+  register(
+    "add_submission_comment",
+    "Add a comment to the student's own submission for an assignment. Requires confirm: true to actually post.",
+    z.object({ course_id: z.number(), assignment_id: z.number(), comment: z.string(), confirm: z.boolean().optional() }),
+    async ({ course_id, assignment_id, comment, confirm }) => {
+      if (!confirm) {
+        return {
+          content: [{ type: "text", text: `This would add the comment "${comment}". Call again with confirm: true to actually post.` }],
+        };
+      }
+      const result = await client.addSubmissionComment(course_id, assignment_id, comment);
+      return { content: [{ type: "text", text: `Comment added. Id: ${result.id}` }] };
+    }
+  );
+
   return server;
 }
