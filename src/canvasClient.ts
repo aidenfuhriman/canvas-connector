@@ -80,7 +80,9 @@ export class CanvasClient {
     let url: string | null = `${this.baseUrl}${path}`;
     const results: T[] = [];
     while (url) {
-      const { data, nextUrl } = await this.requestPage<T[]>(url, init);
+      const response: { data: T[]; nextUrl: string | null } = await this.requestPage<T[]>(url, init);
+      const { data } = response;
+      const { nextUrl } = response;
       results.push(...data);
       url = nextUrl;
     }

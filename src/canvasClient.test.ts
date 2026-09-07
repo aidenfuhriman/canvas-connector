@@ -32,7 +32,7 @@ describe("CanvasClient.listCourses", () => {
       expect(url).toBe("https://school.instructure.com/api/v1/courses?enrollment_state=active");
       expect((init?.headers as Record<string, string>).Authorization).toBe("Bearer test-token");
       return jsonResponse([{ id: 1, name: "Biology 101", course_code: "BIO101" }]);
-    });
+    }) as typeof fetch;
 
     const client = new CanvasClient({ domain: "school.instructure.com", token: "test-token", fetchImpl });
     const courses = await client.listCourses();
@@ -50,7 +50,7 @@ describe("CanvasClient.listCourses", () => {
         });
       }
       return jsonResponse([{ id: 2, name: "Chemistry 201", course_code: "CHEM201" }]);
-    });
+    }) as typeof fetch;
 
     const client = new CanvasClient({ domain: "school.instructure.com", token: "test-token", fetchImpl });
     const courses = await client.listCourses();
@@ -60,7 +60,7 @@ describe("CanvasClient.listCourses", () => {
   });
 
   it("throws a readable CanvasApiError on a 401", async () => {
-    const fetchImpl = vi.fn(async () => new Response("Unauthorized", { status: 401 }));
+    const fetchImpl = vi.fn(async () => new Response("Unauthorized", { status: 401 })) as typeof fetch;
     const client = new CanvasClient({ domain: "school.instructure.com", token: "bad-token", fetchImpl });
 
     await expect(client.listCourses()).rejects.toThrow(CanvasApiError);
@@ -68,7 +68,7 @@ describe("CanvasClient.listCourses", () => {
   });
 
   it("throws a readable CanvasApiError on a 429", async () => {
-    const fetchImpl = vi.fn(async () => new Response("Rate limited", { status: 429 }));
+    const fetchImpl = vi.fn(async () => new Response("Rate limited", { status: 429 })) as typeof fetch;
     const client = new CanvasClient({ domain: "school.instructure.com", token: "test-token", fetchImpl });
 
     await expect(client.listCourses()).rejects.toThrow(/rate.?limit/i);
