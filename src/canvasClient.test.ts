@@ -73,4 +73,24 @@ describe("CanvasClient.listCourses", () => {
 
     await expect(client.listCourses()).rejects.toThrow(/rate.?limit/i);
   });
+
+  it("throws a CanvasApiError when fetchImpl rejects (network failure)", async () => {
+    const fetchImpl = vi.fn(async () => {
+      throw new Error("Network timeout");
+    }) as typeof fetch;
+    const client = new CanvasClient({ domain: "school.instructure.com", token: "test-token", fetchImpl });
+
+    await expect(client.listCourses()).rejects.toThrow(CanvasApiError);
+    await expect(client.listCourses()).rejects.toThrow(/Could not reach Canvas/i);
+  });
+
+  it("throws a CanvasApiError when response body is not valid JSON", async () => {
+    const fetchImpl = vi.fn(async () => {
+      return new Response("Not JSON at all", { status: 200 });
+    }) as typeof fetch;
+    const client = new CanvasClient({ domain: "school.instructure.com", token: "test-token", fetchImpl });
+
+    await expect(client.listCourses()).rejects.toThrow(CanvasApiError);
+    await expect(client.listCourses()).rejects.toThrow(/unexpected.*response/i);
+  });
 });

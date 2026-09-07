@@ -53,20 +53,31 @@ export class CanvasClient {
   }
 
   private async requestPage<T>(url: string, init: RequestInit = {}): Promise<{ data: T; nextUrl: string | null }> {
-    const res = await this.fetchImpl(url, {
-      ...init,
-      headers: {
-        Authorization: `Bearer ${this.token}`,
-        ...(init.headers ?? {}),
-      },
-    });
+    let res: Response;
+    try {
+      res = await this.fetchImpl(url, {
+        ...init,
+        headers: {
+          Authorization: `Bearer ${this.token}`,
+          ...(init.headers ?? {}),
+        },
+      });
+    } catch (err) {
+      throw new CanvasApiError(0, `Could not reach Canvas: ${err instanceof Error ? err.message : String(err)}`);
+    }
 
     if (!res.ok) {
       const body = await res.text().catch(() => "");
       throw new CanvasApiError(res.status, mapErrorMessage(res.status, body));
     }
 
-    const data = (await res.json()) as T;
+    let data: T;
+    try {
+      data = (await res.json()) as T;
+    } catch (err) {
+      throw new CanvasApiError(res.status, "Canvas returned an unexpected (non-JSON) response.");
+    }
+
     const nextUrl = parseNextLink(res.headers.get("Link"));
     return { data, nextUrl };
   }
