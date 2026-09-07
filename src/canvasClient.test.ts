@@ -250,6 +250,12 @@ describe("CanvasClient.submitAssignment", () => {
         });
       }
       if (urlStr === "https://upload.example.com/put") {
+        const form = init?.body as FormData;
+        expect(form.get("key")).toBe("abc");
+        expect(form.get("policy")).toBe("xyz");
+        const file = form.get("file");
+        expect(file).toBeInstanceOf(Blob);
+        expect((file as File).name).toBe("essay.txt");
         return jsonResponse({ id: 555 });
       }
       if (urlStr === "https://school.instructure.com/api/v1/courses/10/assignments/100/submissions") {
@@ -292,6 +298,21 @@ describe("CanvasClient.submitAssignment", () => {
 
     await expect(client.submitAssignment(10, 100, { filePath })).rejects.toThrow(CanvasApiError);
     await expect(client.submitAssignment(10, 100, { filePath })).rejects.toThrow(/Could not reach the Canvas file upload endpoint/i);
+  });
+
+  it("throws CanvasApiError (not a raw fs error) when file_path does not exist", async () => {
+    const fetchImpl = vi.fn(async (url: string | URL | Request) => {
+      throw new Error(`Unexpected URL: ${String(url)}`);
+    });
+
+    const client = new CanvasClient({ domain: "school.instructure.com", token: "t", fetchImpl });
+    const missingPath = join(mkdtempSync(join(tmpdir(), "canvas-test-")), "does-not-exist.txt");
+
+    await expect(client.submitAssignment(10, 100, { filePath: missingPath })).rejects.toThrow(CanvasApiError);
+    await expect(client.submitAssignment(10, 100, { filePath: missingPath })).rejects.toThrow(
+      /Could not read the file to submit/i
+    );
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 
   it("throws CanvasApiError when file upload endpoint returns non-JSON", async () => {

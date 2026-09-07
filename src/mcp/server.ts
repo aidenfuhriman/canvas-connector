@@ -3,6 +3,10 @@ import * as z from "zod/v4";
 import { CanvasClient } from "../canvasClient.js";
 
 type ToolHandler = (args: any) => Promise<{ content: { type: "text"; text: string }[] }>;
+type ToolAnnotations = { readOnlyHint?: boolean; destructiveHint?: boolean; openWorldHint?: boolean };
+
+const READ_ONLY: ToolAnnotations = { readOnlyHint: true };
+const WRITE: ToolAnnotations = { readOnlyHint: false, destructiveHint: true, openWorldHint: true };
 
 export function buildServer(client: CanvasClient) {
   const server = new McpServer({ name: "canvas-mcp", version: "0.1.0" }) as InstanceType<typeof McpServer> & {
@@ -10,13 +14,19 @@ export function buildServer(client: CanvasClient) {
   };
   server._testHandlers = {};
 
-  function register(name: string, description: string, inputSchema: z.ZodObject<any>, handler: ToolHandler) {
+  function register(
+    name: string,
+    description: string,
+    inputSchema: z.ZodObject<any>,
+    handler: ToolHandler,
+    annotations: ToolAnnotations
+  ) {
     // Mirror the real dispatch path (see @modelcontextprotocol/server's `validateStandardSchema`
     // call ahead of `tool.executor(...)`), which parses args against inputSchema before the
     // handler ever runs. Without this, direct-handler tests would bypass schema-level guards
     // (refine/min) that production traffic can never skip.
     server._testHandlers[name] = async (args: unknown) => handler(inputSchema.parse(args));
-    server.registerTool(name, { description, inputSchema }, handler);
+    server.registerTool(name, { description, inputSchema, annotations }, handler);
   }
 
   register(
@@ -27,7 +37,8 @@ export function buildServer(client: CanvasClient) {
       const courses = await client.listCourses();
       const text = courses.map((c) => `${c.id}: ${c.name} (${c.course_code})`).join("\n") || "No active courses.";
       return { content: [{ type: "text", text }] };
-    }
+    },
+    READ_ONLY
   );
 
   register(
@@ -41,7 +52,8 @@ export function buildServer(client: CanvasClient) {
           .map((a) => `${a.id}: ${a.name} — due ${a.due_at ?? "no due date"} — ${a.submission?.workflow_state ?? "unknown"}`)
           .join("\n") || "No assignments found.";
       return { content: [{ type: "text", text }] };
-    }
+    },
+    READ_ONLY
   );
 
   register(
@@ -51,7 +63,8 @@ export function buildServer(client: CanvasClient) {
     async ({ course_id, assignment_id }) => {
       const a = await client.getAssignment(course_id, assignment_id);
       return { content: [{ type: "text", text: `${a.name} — due ${a.due_at ?? "no due date"}` }] };
-    }
+    },
+    READ_ONLY
   );
 
   register(
@@ -65,7 +78,8 @@ export function buildServer(client: CanvasClient) {
           .map((g) => `Course ${g.course_id}: ${g.grades.current_grade ?? "N/A"} (${g.grades.current_score ?? "N/A"})`)
           .join("\n") || "No grades found.";
       return { content: [{ type: "text", text }] };
-    }
+    },
+    READ_ONLY
   );
 
   register(
@@ -76,7 +90,8 @@ export function buildServer(client: CanvasClient) {
       const topics = await client.listDiscussionTopics(course_id);
       const text = topics.map((t) => `${t.id}: ${t.title}`).join("\n") || "No discussion topics found.";
       return { content: [{ type: "text", text }] };
-    }
+    },
+    READ_ONLY
   );
 
   register(
@@ -87,7 +102,8 @@ export function buildServer(client: CanvasClient) {
       const events = await client.listCalendarEvents(start_date, end_date);
       const text = events.map((e) => `${e.title} — ${e.start_at}`).join("\n") || "No calendar events found.";
       return { content: [{ type: "text", text }] };
-    }
+    },
+    READ_ONLY
   );
 
   register(
@@ -121,7 +137,8 @@ export function buildServer(client: CanvasClient) {
       }
       const result = await client.submitAssignment(course_id, assignment_id, submission as any);
       return { content: [{ type: "text", text: `Submitted. Submission id: ${result.id}` }] };
-    }
+    },
+    WRITE
   );
 
   register(
@@ -146,7 +163,8 @@ export function buildServer(client: CanvasClient) {
       }
       const result = await client.postDiscussionReply(course_id, topic_id, message);
       return { content: [{ type: "text", text: `Posted. Entry id: ${result.id}` }] };
-    }
+    },
+    WRITE
   );
 
   register(
@@ -171,7 +189,8 @@ export function buildServer(client: CanvasClient) {
       }
       const result = await client.addSubmissionComment(course_id, assignment_id, comment);
       return { content: [{ type: "text", text: `Comment added. Id: ${result.id}` }] };
-    }
+    },
+    WRITE
   );
 
   return server;
@@ -181,6 +200,11 @@ import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
 import { loadConfigFromEnv } from "./config.js";
 
 async function main() {
+  try {
+    process.loadEnvFile();
+  } catch {
+    // No .env file present (e.g. env vars set another way) — not fatal.
+  }
   const config = loadConfigFromEnv();
   const client = new CanvasClient(config);
   const server = buildServer(client);

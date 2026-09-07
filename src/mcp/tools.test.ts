@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { buildServer } from "./server.js";
+import { CanvasApiError } from "../canvasClient.js";
 import type { CanvasClient } from "../canvasClient.js";
 
 function fakeClient(overrides: Partial<CanvasClient> = {}): CanvasClient {
@@ -24,6 +25,42 @@ describe("list_courses tool", () => {
     const result = await callTool(server, "list_courses", {});
 
     expect(result.content[0].text).toContain("Biology 101");
+  });
+
+  it("propagates a CanvasApiError from the client rather than swallowing or mangling it", async () => {
+    const apiError = new CanvasApiError(401, "Canvas rejected the API token — check CANVAS_API_TOKEN.");
+    const client = fakeClient({
+      listCourses: vi.fn(async () => {
+        throw apiError;
+      }),
+    });
+    const server = buildServer(client);
+
+    await expect(callTool(server, "list_courses", {})).rejects.toBe(apiError);
+    await expect(callTool(server, "list_courses", {})).rejects.toThrow(CanvasApiError);
+    await expect(callTool(server, "list_courses", {})).rejects.toThrow(/token/i);
+  });
+});
+
+describe("buildServer tool registration", () => {
+  it("registers exactly the 9 expected tools (6 read + 3 write)", () => {
+    const client = fakeClient({});
+    const server = buildServer(client);
+
+    const registered = Object.keys((server as any)._testHandlers).sort();
+    const expected = [
+      "list_courses",
+      "list_assignments",
+      "get_assignment",
+      "list_grades",
+      "list_discussion_topics",
+      "list_calendar_events",
+      "submit_assignment",
+      "post_discussion_reply",
+      "add_submission_comment",
+    ].sort();
+
+    expect(registered).toEqual(expected);
   });
 });
 

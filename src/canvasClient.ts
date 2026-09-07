@@ -175,8 +175,14 @@ export class CanvasClient {
   }
 
   private async uploadFile(courseId: number, assignmentId: number, filePath: string): Promise<number> {
-    const name = basename(filePath);
-    const size = statSync(filePath).size;
+    let name: string;
+    let size: number;
+    try {
+      name = basename(filePath);
+      size = statSync(filePath).size;
+    } catch (err) {
+      throw new CanvasApiError(0, `Could not read the file to submit: ${err instanceof Error ? err.message : String(err)}`);
+    }
 
     const { upload_url, upload_params } = await this.postJson<{
       upload_url: string;
@@ -186,11 +192,18 @@ export class CanvasClient {
       size,
     });
 
+    let fileBlob: Blob;
+    try {
+      fileBlob = new Blob([readFileSync(filePath)]);
+    } catch (err) {
+      throw new CanvasApiError(0, `Could not read the file to submit: ${err instanceof Error ? err.message : String(err)}`);
+    }
+
     const form = new FormData();
     for (const [key, value] of Object.entries(upload_params)) {
       form.append(key, value);
     }
-    form.append("file", new Blob([readFileSync(filePath)]), name);
+    form.append("file", fileBlob, name);
 
     let res: Response;
     try {
