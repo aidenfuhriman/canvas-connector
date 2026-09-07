@@ -28,6 +28,11 @@ export interface Enrollment {
   };
 }
 
+export interface DiscussionTopic {
+  id: number;
+  title: string;
+}
+
 export class CanvasApiError extends Error {
   constructor(public status: number, message: string) {
     super(message);
@@ -133,5 +138,21 @@ export class CanvasClient {
   async listGrades(courseId?: number): Promise<Enrollment[]> {
     const all = await this.requestAllPages<Enrollment>("/users/self/enrollments?type[]=StudentEnrollment");
     return courseId === undefined ? all : all.filter((e) => e.course_id === courseId);
+  }
+
+  protected async postJson<T>(path: string, body: unknown): Promise<T> {
+    return this.requestOne<T>(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  }
+
+  async listDiscussionTopics(courseId: number): Promise<DiscussionTopic[]> {
+    return this.requestAllPages<DiscussionTopic>(`/courses/${courseId}/discussion_topics`);
+  }
+
+  async postDiscussionReply(courseId: number, topicId: number, message: string): Promise<{ id: number }> {
+    return this.postJson(`/courses/${courseId}/discussion_topics/${topicId}/entries`, { message });
   }
 }

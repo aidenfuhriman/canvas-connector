@@ -162,3 +162,33 @@ describe("CanvasClient.listGrades", () => {
     expect(grades).toEqual([{ course_id: 10, grades: { current_score: 92, current_grade: "A-" } }]);
   });
 });
+
+describe("CanvasClient.listDiscussionTopics", () => {
+  it("lists discussion topics for a course", async () => {
+    const fetchImpl = vi.fn(async (url: string) => {
+      expect(url).toBe("https://school.instructure.com/api/v1/courses/10/discussion_topics");
+      return jsonResponse([{ id: 500, title: "Week 1 Discussion" }]);
+    });
+
+    const client = new CanvasClient({ domain: "school.instructure.com", token: "t", fetchImpl });
+    const topics = await client.listDiscussionTopics(10);
+
+    expect(topics[0].title).toBe("Week 1 Discussion");
+  });
+});
+
+describe("CanvasClient.postDiscussionReply", () => {
+  it("POSTs a message to the topic's entries endpoint", async () => {
+    const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
+      expect(url).toBe("https://school.instructure.com/api/v1/courses/10/discussion_topics/500/entries");
+      expect(init?.method).toBe("POST");
+      expect(JSON.parse(init?.body as string)).toEqual({ message: "Great point!" });
+      return jsonResponse({ id: 9001 });
+    });
+
+    const client = new CanvasClient({ domain: "school.instructure.com", token: "t", fetchImpl });
+    const reply = await client.postDiscussionReply(10, 500, "Great point!");
+
+    expect(reply.id).toBe(9001);
+  });
+});
