@@ -11,7 +11,11 @@ export function buildServer(client: CanvasClient) {
   server._testHandlers = {};
 
   function register(name: string, description: string, inputSchema: z.ZodObject<any>, handler: ToolHandler) {
-    server._testHandlers[name] = handler;
+    // Mirror the real dispatch path (see @modelcontextprotocol/server's `validateStandardSchema`
+    // call ahead of `tool.executor(...)`), which parses args against inputSchema before the
+    // handler ever runs. Without this, direct-handler tests would bypass schema-level guards
+    // (refine/min) that production traffic can never skip.
+    server._testHandlers[name] = async (args: unknown) => handler(inputSchema.parse(args));
     server.registerTool(name, { description, inputSchema }, handler);
   }
 
@@ -89,17 +93,21 @@ export function buildServer(client: CanvasClient) {
   register(
     "submit_assignment",
     "Submit assignment work (text, a URL, or a local file path). Requires confirm: true to actually submit.",
-    z.object({
-      course_id: z.number(),
-      assignment_id: z.number(),
-      text: z.string().optional(),
-      url: z.string().optional(),
-      file_path: z.string().optional(),
-      confirm: z.boolean().optional(),
-    }),
+    z
+      .object({
+        course_id: z.number(),
+        assignment_id: z.number(),
+        text: z.string().min(1).optional(),
+        url: z.string().min(1).optional(),
+        file_path: z.string().min(1).optional(),
+        confirm: z.boolean().optional(),
+      })
+      .refine((data) => [data.text, data.url, data.file_path].filter((v) => v !== undefined).length === 1, {
+        message: "Provide exactly one of text, url, or file_path.",
+      }),
     async ({ course_id, assignment_id, text, url, file_path, confirm }) => {
       const submission = text !== undefined ? { text } : url !== undefined ? { url } : { filePath: file_path! };
-      if (!confirm) {
+      if (confirm !== true) {
         return {
           content: [
             {
@@ -119,12 +127,20 @@ export function buildServer(client: CanvasClient) {
   register(
     "post_discussion_reply",
     "Post a reply to a Canvas discussion topic. Requires confirm: true to actually post.",
-    z.object({ course_id: z.number(), topic_id: z.number(), message: z.string(), confirm: z.boolean().optional() }),
+    z.object({
+      course_id: z.number(),
+      topic_id: z.number(),
+      message: z.string().min(1),
+      confirm: z.boolean().optional(),
+    }),
     async ({ course_id, topic_id, message, confirm }) => {
-      if (!confirm) {
+      if (confirm !== true) {
         return {
           content: [
-            { type: "text", text: `This would post "${message}" to topic ${topic_id}. Call again with confirm: true to actually post.` },
+            {
+              type: "text",
+              text: `This would post "${message}" to course ${course_id}, topic ${topic_id}. Call again with confirm: true to actually post.`,
+            },
           ],
         };
       }
@@ -136,11 +152,21 @@ export function buildServer(client: CanvasClient) {
   register(
     "add_submission_comment",
     "Add a comment to the student's own submission for an assignment. Requires confirm: true to actually post.",
-    z.object({ course_id: z.number(), assignment_id: z.number(), comment: z.string(), confirm: z.boolean().optional() }),
+    z.object({
+      course_id: z.number(),
+      assignment_id: z.number(),
+      comment: z.string().min(1),
+      confirm: z.boolean().optional(),
+    }),
     async ({ course_id, assignment_id, comment, confirm }) => {
-      if (!confirm) {
+      if (confirm !== true) {
         return {
-          content: [{ type: "text", text: `This would add the comment "${comment}". Call again with confirm: true to actually post.` }],
+          content: [
+            {
+              type: "text",
+              text: `This would add the comment "${comment}" to course ${course_id}, assignment ${assignment_id}. Call again with confirm: true to actually post.`,
+            },
+          ],
         };
       }
       const result = await client.addSubmissionComment(course_id, assignment_id, comment);

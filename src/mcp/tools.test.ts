@@ -136,6 +136,93 @@ describe("submit_assignment tool", () => {
     expect(submitAssignment).toHaveBeenCalledWith(10, 100, { text: "My essay" });
     expect(result.content[0].text).toContain("7001");
   });
+
+  it("does not submit when confirm is explicitly false", async () => {
+    const submitAssignment = vi.fn();
+    const client = fakeClient({ submitAssignment });
+    const server = buildServer(client);
+
+    const result = await callTool(server, "submit_assignment", {
+      course_id: 10,
+      assignment_id: 100,
+      text: "My essay",
+      confirm: false,
+    });
+
+    expect(submitAssignment).not.toHaveBeenCalled();
+    expect(result.content[0].text).toMatch(/confirm/i);
+  });
+
+  it("submits a url when confirmed", async () => {
+    const submitAssignment = vi.fn(async () => ({ id: 7002 }));
+    const client = fakeClient({ submitAssignment });
+    const server = buildServer(client);
+
+    const result = await callTool(server, "submit_assignment", {
+      course_id: 10,
+      assignment_id: 100,
+      url: "https://example.com/essay",
+      confirm: true,
+    });
+
+    expect(submitAssignment).toHaveBeenCalledWith(10, 100, { url: "https://example.com/essay" });
+    expect(result.content[0].text).toContain("7002");
+  });
+
+  it("submits a file_path when confirmed", async () => {
+    const submitAssignment = vi.fn(async () => ({ id: 7003 }));
+    const client = fakeClient({ submitAssignment });
+    const server = buildServer(client);
+
+    const result = await callTool(server, "submit_assignment", {
+      course_id: 10,
+      assignment_id: 100,
+      file_path: "/tmp/essay.txt",
+      confirm: true,
+    });
+
+    expect(submitAssignment).toHaveBeenCalledWith(10, 100, { filePath: "/tmp/essay.txt" });
+    expect(result.content[0].text).toContain("7003");
+  });
+
+  it("rejects a call with none of text, url, or file_path set", async () => {
+    const submitAssignment = vi.fn();
+    const client = fakeClient({ submitAssignment });
+    const server = buildServer(client);
+
+    await expect(
+      callTool(server, "submit_assignment", { course_id: 10, assignment_id: 100, confirm: true })
+    ).rejects.toThrow();
+    expect(submitAssignment).not.toHaveBeenCalled();
+  });
+
+  it("rejects a call with more than one of text, url, or file_path set", async () => {
+    const submitAssignment = vi.fn();
+    const client = fakeClient({ submitAssignment });
+    const server = buildServer(client);
+
+    await expect(
+      callTool(server, "submit_assignment", {
+        course_id: 10,
+        assignment_id: 100,
+        text: "My essay",
+        url: "https://example.com/essay",
+        confirm: true,
+      })
+    ).rejects.toThrow();
+    expect(submitAssignment).not.toHaveBeenCalled();
+  });
+
+  it("rejects an empty text submission", async () => {
+    const submitAssignment = vi.fn();
+    const client = fakeClient({ submitAssignment });
+    const server = buildServer(client);
+
+    await expect(
+      callTool(server, "submit_assignment", { course_id: 10, assignment_id: 100, text: "", confirm: true })
+    ).rejects.toThrow();
+    expect(submitAssignment).not.toHaveBeenCalled();
+  });
 });
 
 describe("post_discussion_reply tool", () => {
@@ -157,6 +244,28 @@ describe("post_discussion_reply tool", () => {
     await callTool(server, "post_discussion_reply", { course_id: 10, topic_id: 500, message: "hi", confirm: true });
 
     expect(postDiscussionReply).toHaveBeenCalledWith(10, 500, "hi");
+  });
+
+  it("preview includes both course_id and topic_id", async () => {
+    const postDiscussionReply = vi.fn();
+    const client = fakeClient({ postDiscussionReply });
+    const server = buildServer(client);
+
+    const result = await callTool(server, "post_discussion_reply", { course_id: 10, topic_id: 500, message: "hi" });
+
+    expect(result.content[0].text).toContain("10");
+    expect(result.content[0].text).toContain("500");
+  });
+
+  it("rejects an empty message", async () => {
+    const postDiscussionReply = vi.fn();
+    const client = fakeClient({ postDiscussionReply });
+    const server = buildServer(client);
+
+    await expect(
+      callTool(server, "post_discussion_reply", { course_id: 10, topic_id: 500, message: "", confirm: true })
+    ).rejects.toThrow();
+    expect(postDiscussionReply).not.toHaveBeenCalled();
   });
 });
 
@@ -184,5 +293,31 @@ describe("add_submission_comment tool", () => {
     });
 
     expect(addSubmissionComment).toHaveBeenCalledWith(10, 100, "sorry, late");
+  });
+
+  it("preview includes both course_id and assignment_id", async () => {
+    const addSubmissionComment = vi.fn();
+    const client = fakeClient({ addSubmissionComment });
+    const server = buildServer(client);
+
+    const result = await callTool(server, "add_submission_comment", {
+      course_id: 10,
+      assignment_id: 100,
+      comment: "sorry, late",
+    });
+
+    expect(result.content[0].text).toContain("10");
+    expect(result.content[0].text).toContain("100");
+  });
+
+  it("rejects an empty comment", async () => {
+    const addSubmissionComment = vi.fn();
+    const client = fakeClient({ addSubmissionComment });
+    const server = buildServer(client);
+
+    await expect(
+      callTool(server, "add_submission_comment", { course_id: 10, assignment_id: 100, comment: "", confirm: true })
+    ).rejects.toThrow();
+    expect(addSubmissionComment).not.toHaveBeenCalled();
   });
 });
