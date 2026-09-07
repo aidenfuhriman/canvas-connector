@@ -1,6 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
-import type { CanvasClient } from "../canvasClient.js";
+import { CanvasClient } from "../canvasClient.js";
 
 type ToolHandler = (args: any) => Promise<{ content: { type: "text"; text: string }[] }>;
 
@@ -175,4 +175,22 @@ export function buildServer(client: CanvasClient) {
   );
 
   return server;
+}
+
+import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
+import { loadConfigFromEnv } from "./config.js";
+
+async function main() {
+  const config = loadConfigFromEnv();
+  const client = new CanvasClient(config);
+  const server = buildServer(client);
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
 }
