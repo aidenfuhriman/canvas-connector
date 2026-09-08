@@ -1,13 +1,7 @@
 Upcoming Assignments (next 7 days):
-  - [ACC 200-001: Principles of Accounting] 2: Module Quiz — due 2026-09-10T05:59:59Z
-  - [BIO 100 Fall 2026] Review Quiz 2 — due 2026-09-11T05:59:59Z
-  - [BIO 100 Fall 2026] Nature of Science Learning Activity — due 2026-09-13T05:59:59Z
-  - [REL C 225-015: Foundations of the Restoration] Before Class Study Insight (Reflection) for Module 1: Lesson 2 — due 2026-09-09T16:00:00Z
-  - [REL C 225-015: Foundations of the Restoration] Before Class Study Insight (Reflection) for Module 1: Lesson 3 — due 2026-09-14T16:00:00Z
-  - [REL C 225-015: Foundations of the Restoration] In Class Study Insight (Reflection) for Module 1: Lesson 3 — due 2026-09-14T16:00:00Z
-  - [REL C 225-015: Foundations of the Restoration] In-Class Act in Faith (Reflection) for Module 1: Lesson 2 — due 2026-09-09T16:55:00Z
-  - [UNIV 101-379: BYU Foundations] Activity B: Student Success — due 2026-09-12T05:59:00Z
-  - [UNIV 101-379: BYU Foundations] Week 2: Devotional/Forum Attendance — due 2026-09-12T05:59:00Z
+  Could not fetch Canvas data this morning.
 
 Today's Canvas Schedule:
-  No Canvas calendar events today.
+  Could not fetch Canvas data this morning.
+
+(error: /Users/aidenfuhriman/projects/canvas-connector/scripts/publish-digest.sh: line 11: node: command not found)
